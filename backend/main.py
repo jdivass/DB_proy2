@@ -14,7 +14,7 @@ async def test():
     if (conn != None):
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT 1")
+            cursor.execute("SELECT count(*) from producto")
             row = cursor.fetchone()
             value = row[0]
         except Exception as error:
