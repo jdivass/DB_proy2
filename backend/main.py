@@ -307,3 +307,52 @@ async def clientes_top():
     finally:
         cursor.close()
         conn.close()
+
+@app.get("/products/top-product_incomes")
+async def top_productos_ingresos():
+    conn = db_connection()
+    if conn is None:
+        return {"error": "db connection failed"}
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            WITH ventas_producto AS (
+                SELECT 
+                    dv.id_producto,
+                    SUM(dv.cantidad * dv.precio_venta) AS ingreso_total
+                FROM Detalle_venta dv
+                GROUP BY dv.id_producto
+            )
+
+            SELECT 
+                p.id_producto,
+                p.nombre,
+                p.descripcion,
+                p.precio_general,
+                vp.ingreso_total
+            FROM ventas_producto vp
+            JOIN Producto p ON vp.id_producto = p.id_producto
+            ORDER BY vp.ingreso_total DESC
+            LIMIT 10;
+        """)
+
+        rows = cursor.fetchall()
+
+        return [
+            {
+                "id_producto": r[0],
+                "nombre": r[1],
+                "descripcion": r[2],
+                "precio": float(r[3]),
+                "ingreso_total": float(r[4])
+            }
+            for r in rows
+        ]
+
+    except Exception as error:
+        return {"error": str(error)}
+
+    finally:
+        cursor.close()
+        conn.close()
