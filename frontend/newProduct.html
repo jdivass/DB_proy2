@@ -18,9 +18,9 @@
       <div class="collapse navbar-collapse" id="navMenu">
         <ul class="navbar-nav ms-auto">
           <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link active" href="productos.html">Productos</a></li>
-          <li class="nav-item"><a class="nav-link" href="clientes.html">Clientes</a></li>
-          <li class="nav-item"><a class="nav-link" href="ventas.html">Ventas</a></li>
+          <li class="nav-item"><a class="nav-link active" href="products.html">Productos</a></li>
+          <li class="nav-item"><a class="nav-link" href="clients.html">Clientes</a></li>
+          <li class="nav-item"><a class="nav-link" href="sales.html">Ventas</a></li>
         </ul>
       </div>
     </div>
@@ -31,7 +31,7 @@
       <div class="col-md-7">
 
         <div class="d-flex align-items-center mb-4 gap-2">
-          <a href="productos.html" class="btn btn-outline-secondary btn-sm">← Volver</a>
+          <a href="products.html" class="btn btn-outline-secondary btn-sm">← Volver</a>
           <h2 class="mb-0" id="page-title">Nuevo Producto</h2>
         </div>
 
@@ -76,7 +76,7 @@
 
           <div class="d-flex gap-2">
             <button class="btn btn-primary" onclick="guardar()">Guardar</button>
-            <a href="productos.html" class="btn btn-outline-secondary">Cancelar</a>
+            <a href="products.html" class="btn btn-outline-secondary">Cancelar</a>
           </div>
         </div>
 
@@ -135,7 +135,7 @@
           showToast('Producto creado');
         }
         // Redirigir de vuelta al listado
-        setTimeout(() => window.location.href = 'productos.html', 1000);
+        setTimeout(() => window.location.href = 'products.html', 1000);
       } catch (e) {
         showToast(e.message, 'danger');
       }
