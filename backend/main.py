@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from dbConnection import db_connection
 
 app = FastAPI()
@@ -26,55 +26,30 @@ async def test():
     else:
         return {"error": "db connection failed"}
     
-
-@app.get("/products")
-async def get_products():
+@app.get("/productos")
+async def get_productos():
     conn = db_connection()
-
     if conn is None:
         return {"error": "db connection failed"}
 
     cursor = conn.cursor()
-
     try:
-        query = """
-        SELECT 
-            p.id_producto,
-            p.nombre,
-            p.descripcion,
-            p.stock_actual,
-            p.stock_minimo,
-            p.precio_general,
-            c.nombre AS categoria,
-            pr.nombre AS proveedor,
-            s.precio AS precio_compra
-        FROM Producto p
-        JOIN Categoria c ON p.id_categoria = c.id_categoria
-        LEFT JOIN Suministra s ON p.id_producto = s.id_producto
-        LEFT JOIN Proveedor pr ON s.id_proveedor = pr.id_proveedor
-        ORDER BY p.id_producto;
-        """
-
-        cursor.execute(query)
+        cursor.execute("SELECT * FROM vista_productos;")
         rows = cursor.fetchall()
 
-        productos = []
-
-        for row in rows:
-            producto = {
-                "id": row[0],
-                "nombre": row[1],
-                "descripcion": row[2],
-                "stock_actual": row[3],
-                "stock_minimo": row[4],
-                "precio_general": float(row[5]),
-                "categoria": row[6],
-                "proveedor": row[7],
-                "precio_compra": float(row[8]) if row[8] else None
+        return [
+            {
+                "id_producto": r[0],
+                "nombre": r[1],
+                "descripcion": r[2],
+                "precio": float(r[3]),
+                "stock_actual": r[4],
+                "stock_minimo": r[5],
+                "categoria": r[6],
+                "estado_stock": r[7]
             }
-            productos.append(producto)
-
-        return productos
+            for r in rows
+        ]
 
     except Exception as error:
         return {"error": str(error)}
@@ -130,7 +105,7 @@ async def get_products_by_category(category_name: str):
         conn.close()
         
 @app.get("/sales")
-async def get_ventas():
+async def get_sales():
     conn = db_connection()
 
     if conn is None:
@@ -212,7 +187,7 @@ async def get_ventas():
         conn.close()
 
 @app.get("/products/minimun_stock")
-async def get_productos_stock_ok_subquery():
+async def get_available_products():
     conn = db_connection()
 
     if conn is None:
@@ -260,7 +235,7 @@ async def get_productos_stock_ok_subquery():
         conn.close()
 
 @app.get("/clients/top")
-async def clientes_top():
+async def clients_top():
     conn = db_connection()
     if conn is None:
         return {"error": "db connection failed"}
@@ -308,8 +283,8 @@ async def clientes_top():
         cursor.close()
         conn.close()
 
-@app.get("/products/top-product_incomes")
-async def top_productos_ingresos():
+@app.get("/products/top_product_incomes")
+async def top_product_incomes():
     conn = db_connection()
     if conn is None:
         return {"error": "db connection failed"}
@@ -352,6 +327,60 @@ async def top_productos_ingresos():
 
     except Exception as error:
         return {"error": str(error)}
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.post("/sale")
+async def createSale(data: dict):
+    conn = db_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="DB connection failed")
+
+    try:
+        cursor = conn.cursor()
+
+        # Iniciar transacción
+        conn.autocommit = False
+
+        # 1. Insertar venta
+        cursor.execute("""
+            INSERT INTO Venta (id_cliente, id_empleado, metodo_pago)
+            VALUES (%s, %s, %s)
+            RETURNING id_venta;
+        """, (data["id_cliente"], data["id_empleado"], data["metodo_pago"]))
+
+        id_venta = cursor.fetchone()[0]
+
+        # 2. Insertar detalles
+        for item in data["productos"]:
+            cursor.execute("""
+                INSERT INTO Detalle_venta (id_venta, id_producto, cantidad, precio_venta)
+                VALUES (%s, %s, %s, %s);
+            """, (
+                id_venta,
+                item["id_producto"],
+                item["cantidad"],
+                item["precio"]
+            ))
+
+            # 3. Actualizar stock
+            cursor.execute("""
+                UPDATE Producto
+                SET stock_actual = stock_actual - %s
+                WHERE id_producto = %s;
+            """, (item["cantidad"], item["id_producto"]))
+
+        # Commit si todo salió bien
+        conn.commit()
+
+        return {"message": "Venta creada", "id_venta": id_venta}
+
+    except Exception as e:
+        # RollBack
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         cursor.close()
