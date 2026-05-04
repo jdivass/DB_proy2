@@ -128,9 +128,9 @@ async def get_products_by_category(category_name: str):
     finally:
         cursor.close()
         conn.close()
-
+        
 @app.get("/ventas")
-async def get_complete_sales():
+async def get_ventas():
     conn = db_connection()
 
     if conn is None:
@@ -185,15 +185,22 @@ async def get_complete_sales():
                         "nombre": row[7],
                         "apellido": row[8]
                     },
-                    "productos": []
+                    "productos": [],
+                    "total": 0
                 }
+
+            cantidad = row[11]
+            precio = float(row[12])
 
             ventas[id_venta]["productos"].append({
                 "id_producto": row[9],
                 "nombre": row[10],
-                "cantidad": row[11],
-                "precio_venta": float(row[12])
+                "cantidad": cantidad,
+                "precio_venta": precio
             })
+
+            # 🔥 acumulamos total
+            ventas[id_venta]["total"] += cantidad * precio
 
         return {"ventas": list(ventas.values())}
 
