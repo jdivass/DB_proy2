@@ -258,3 +258,52 @@ async def get_productos_stock_ok_subquery():
     finally:
         cursor.close()
         conn.close()
+
+@app.get("/clients/top")
+async def clientes_top():
+    conn = db_connection()
+    if conn is None:
+        return {"error": "db connection failed"}
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT 
+                c.id_cliente,
+                c.nombre,
+                c.apellido,
+                SUM(dv.cantidad * dv.precio_venta) AS total_gastado
+            FROM Cliente c
+            JOIN Venta v ON c.id_cliente = v.id_cliente
+            JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
+            GROUP BY c.id_cliente
+            HAVING SUM(dv.cantidad * dv.precio_venta) > (
+                SELECT AVG(total_cliente)
+                FROM (
+                    SELECT SUM(dv2.cantidad * dv2.precio_venta) AS total_cliente
+                    FROM Venta v2
+                    JOIN Detalle_venta dv2 ON v2.id_venta = dv2.id_venta
+                    GROUP BY v2.id_cliente
+                ) sub
+            );
+        """)
+
+        rows = cursor.fetchall()
+
+        result = []
+        for row in rows:
+            result.append({
+                "id_cliente": row[0],
+                "nombre": row[1],
+                "apellido": row[2],
+                "total_gastado": float(row[3])
+            })
+
+        return result
+
+    except Exception as error:
+        return {"error": str(error)}
+
+    finally:
+        cursor.close()
+        conn.close()
