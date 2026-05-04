@@ -1,5 +1,5 @@
 
-const API = 'http://localhost:8000';
+const API = '/api';
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(API + path, {

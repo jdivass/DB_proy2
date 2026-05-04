@@ -6,9 +6,17 @@ from models import (
     ClientCreate, ClientUpdate, ClientResponse,
     SaleCreate, SaleResponse, ProductResponse, SaleProductResponse
 )
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+
+)
 @app.get("/")
 async def root():
     return {"message": "API running"}
@@ -120,7 +128,21 @@ async def create_product(data: ProductCreate):
         id_producto = row[0]
         conn.commit()
 
-        return {"id_producto": id_producto}
+        cursor.execute("SELECT * FROM vista_productos WHERE id_producto = %s;", (id_producto,))
+        product = cursor.fetchone()
+        if product is None:
+            raise HTTPException(status_code=404, detail="Product not found after insert")
+
+        return {
+            "id_producto":  product[0],
+            "nombre":       product[1],
+            "descripcion":  product[2],
+            "precio":       float(product[3]),
+            "stock_actual": product[4],
+            "stock_minimo": product[5],
+            "categoria":    product[6],
+            "estado_stock": product[7],
+        }
 
     except Exception as e:
         conn.rollback()
@@ -167,7 +189,22 @@ async def update_product(id: int, data: ProductUpdate):
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
         conn.commit()
-        return {"message": "Producto actualizado"}
+
+        cursor.execute("SELECT * FROM vista_productos WHERE id_producto = %s;", (id,))
+        product = cursor.fetchone()
+        if product is None:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+        return {
+            "id_producto":  product[0],
+            "nombre":       product[1],
+            "descripcion":  product[2],
+            "precio":       float(product[3]),
+            "stock_actual": product[4],
+            "stock_minimo": product[5],
+            "categoria":    product[6],
+            "estado_stock": product[7],
+        }
 
     except Exception as e:
         conn.rollback()
@@ -680,7 +717,6 @@ async def get_sales():
     cursor = conn.cursor()
 
     try:
-        # 🔹 Query principal con subquery para total
         cursor.execute("""
             SELECT 
                 v.id_venta,

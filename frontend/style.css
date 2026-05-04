@@ -1,0 +1,92 @@
+/* ── Variables ── */
+:root {
+  --primary: #0d6efd;
+  --danger:  #dc3545;
+  --success: #198754;
+  --warning: #ffc107;
+}
+
+/* Layout general */
+body {
+  background-color: #f8f9fa;
+}
+
+/* Navbar */
+.navbar-brand {
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+.nav-link.active {
+  font-weight: 600;
+}
+
+/*  Tarjetas de stats */
+.stat-card {
+  border-left: 4px solid var(--primary);
+}
+
+.stat-card .stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.stat-card .stat-label {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+/*  Tablas  */
+.table th {
+  background-color: #e9ecef;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Badges de stock */
+.badge-ok {
+  background-color: #d1e7dd;
+  color: #0f5132;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.badge-low {
+  background-color: #f8d7da;
+  color: #842029;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+/* Forms */
+.form-section {
+  background: #fff;
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+
+/* Alertas de carga/error  */
+#msg-loading, #msg-error {
+  display: none;
+}
+
+/*New sale  */
+#cart-list .cart-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #dee2e6;
+  font-size: 0.9rem;
+}
+
+#cart-total {
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: right;
+  margin-top: 0.75rem;
+}

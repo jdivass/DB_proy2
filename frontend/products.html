@@ -11,13 +11,13 @@
 
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container">
-      <a class="navbar-brand" href="dashboard.html">🏪 Store</a>
+      <a class="navbar-brand" href="index.html">🏪 Store</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navMenu">
         <ul class="navbar-nav ms-auto">
-          <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="index.html">Dashboard</a></li>
           <li class="nav-item"><a class="nav-link active" href="products.html">Productos</a></li>
           <li class="nav-item"><a class="nav-link" href="clients.html">Clientes</a></li>
           <li class="nav-item"><a class="nav-link" href="sales.html">Ventas</a></li>
@@ -98,7 +98,7 @@
           <td>${p.stock_actual} <span class="text-muted small">/ mín ${p.stock_minimo}</span></td>
           <td><span class="${p.estado_stock === 'OK' ? 'badge-ok' : 'badge-low'}">${p.estado_stock}</span></td>
           <td>
-            <a href="nuevo-producto.html?id=${p.id_producto}" class="btn btn-sm btn-outline-secondary">Editar</a>
+            <a href="newProduct.html?id=${p.id_producto}" class="btn btn-sm btn-outline-secondary">Editar</a>
             <button class="btn btn-sm btn-outline-danger" onclick="eliminar(${p.id_producto}, '${p.nombre}')">Eliminar</button>
           </td>
         </tr>
