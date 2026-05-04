@@ -28,7 +28,7 @@ async def test():
     
 
 @app.get("/productos")
-async def get_productos():
+async def get_products():
     conn = db_connection()
 
     if conn is None:
@@ -84,7 +84,7 @@ async def get_productos():
         conn.close()
 
 @app.get("/productos/categoria/{nombre_categoria}")
-async def get_productos_por_categoria(nombre_categoria: str):
+async def get_products_by_category(category_name: str):
     conn = db_connection()
     
     if conn is None:
@@ -106,7 +106,7 @@ async def get_productos_por_categoria(nombre_categoria: str):
             WHERE c.nombre = %s
         """
 
-        cursor.execute(query, (nombre_categoria,))
+        cursor.execute(query, (category_name,))
         rows = cursor.fetchall()
 
         productos = []
@@ -121,6 +121,81 @@ async def get_productos_por_categoria(nombre_categoria: str):
             })
 
         return {"productos": productos}
+
+    except Exception as error:
+        return {"error": str(error)}
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/ventas")
+async def get_complete_sales():
+    conn = db_connection()
+
+    if conn is None:
+        return {"error": "db connection failed"}
+
+    cursor = conn.cursor()
+
+    try:
+        query = """
+            SELECT 
+                v.id_venta,
+                v.fecha,
+                v.metodo_pago,
+                c.id_cliente,
+                c.nombre,
+                c.apellido,
+                e.id_empleado,
+                e.nombre,
+                e.apellido,
+                p.id_producto,
+                p.nombre,
+                dv.cantidad,
+                dv.precio_venta
+            FROM Venta v
+            JOIN Cliente c ON v.id_cliente = c.id_cliente
+            JOIN Empleado e ON v.id_empleado = e.id_empleado
+            JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
+            JOIN Producto p ON dv.id_producto = p.id_producto
+            ORDER BY v.id_venta;
+        """
+
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        ventas = {}
+
+        for row in rows:
+            id_venta = row[0]
+
+            if id_venta not in ventas:
+                ventas[id_venta] = {
+                    "id_venta": id_venta,
+                    "fecha": row[1],
+                    "metodo_pago": row[2],
+                    "cliente": {
+                        "id": row[3],
+                        "nombre": row[4],
+                        "apellido": row[5]
+                    },
+                    "empleado": {
+                        "id": row[6],
+                        "nombre": row[7],
+                        "apellido": row[8]
+                    },
+                    "productos": []
+                }
+
+            ventas[id_venta]["productos"].append({
+                "id_producto": row[9],
+                "nombre": row[10],
+                "cantidad": row[11],
+                "precio_venta": float(row[12])
+            })
+
+        return {"ventas": list(ventas.values())}
 
     except Exception as error:
         return {"error": str(error)}
