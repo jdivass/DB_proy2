@@ -26,7 +26,7 @@ async def test():
     else:
         return {"error": "db connection failed"}
     
-    
+
 @app.get("/productos")
 async def get_productos():
     conn = db_connection()
@@ -75,6 +75,52 @@ async def get_productos():
             productos.append(producto)
 
         return productos
+
+    except Exception as error:
+        return {"error": str(error)}
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/productos/categoria/{nombre_categoria}")
+async def get_productos_por_categoria(nombre_categoria: str):
+    conn = db_connection()
+    
+    if conn is None:
+        return {"error": "db connection failed"}
+
+    cursor = conn.cursor()
+
+    try:
+        query = """
+            SELECT 
+                p.id_producto,
+                p.nombre,
+                p.descripcion,
+                p.stock_actual,
+                p.precio_general,
+                c.nombre as categoria
+            FROM Producto p
+            JOIN Categoria c ON p.id_categoria = c.id_categoria
+            WHERE c.nombre = %s
+        """
+
+        cursor.execute(query, (nombre_categoria,))
+        rows = cursor.fetchall()
+
+        productos = []
+        for row in rows:
+            productos.append({
+                "id": row[0],
+                "nombre": row[1],
+                "descripcion": row[2],
+                "stock": row[3],
+                "precio": float(row[4]),
+                "categoria": row[5]
+            })
+
+        return {"productos": productos}
 
     except Exception as error:
         return {"error": str(error)}
