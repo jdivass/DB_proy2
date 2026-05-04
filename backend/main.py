@@ -27,7 +27,7 @@ async def test():
         return {"error": "db connection failed"}
     
 
-@app.get("/productos")
+@app.get("/products")
 async def get_products():
     conn = db_connection()
 
@@ -83,7 +83,7 @@ async def get_products():
         cursor.close()
         conn.close()
 
-@app.get("/productos/categoria/{nombre_categoria}")
+@app.get("/products/category/{category_name}")
 async def get_products_by_category(category_name: str):
     conn = db_connection()
     
@@ -129,7 +129,7 @@ async def get_products_by_category(category_name: str):
         cursor.close()
         conn.close()
         
-@app.get("/ventas")
+@app.get("/sales")
 async def get_ventas():
     conn = db_connection()
 
@@ -203,6 +203,54 @@ async def get_ventas():
             ventas[id_venta]["total"] += cantidad * precio
 
         return {"ventas": list(ventas.values())}
+
+    except Exception as error:
+        return {"error": str(error)}
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/products/minimun_stock")
+async def get_productos_stock_ok_subquery():
+    conn = db_connection()
+
+    if conn is None:
+        return {"error": "db connection failed"}
+
+    cursor = conn.cursor()
+
+    try:
+        query = """
+            SELECT 
+                p.id_producto,
+                p.nombre,
+                p.stock_actual,
+                p.stock_minimo,
+                c.nombre AS categoria
+            FROM Producto p
+            JOIN Categoria c ON p.id_categoria = c.id_categoria
+            WHERE p.id_producto IN (
+                SELECT p2.id_producto
+                FROM Producto p2
+                WHERE p2.stock_actual > p2.stock_minimo
+            );
+        """
+
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        productos = []
+        for row in rows:
+            productos.append({
+                "id": row[0],
+                "nombre": row[1],
+                "stock_actual": row[2],
+                "stock_minimo": row[3],
+                "categoria": row[4]
+            })
+
+        return {"productos": productos}
 
     except Exception as error:
         return {"error": str(error)}
