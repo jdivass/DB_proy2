@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — StoreDB</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="style.css" rel="stylesheet"/>
+</head>
+<body>
+
+  <!-- Barra de navegación -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+      <a class="navbar-brand" href="dashboard.html">🏪 StoreDB</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link active" href="dashboard.html">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="productos.html">Productos</a></li>
+          <li class="nav-item"><a class="nav-link" href="clientes.html">Clientes</a></li>
+          <li class="nav-item"><a class="nav-link" href="ventas.html">Ventas</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+
+    <h2 class="mb-4">Dashboard</h2>
+
+    <!-- Loader mientras carga -->
+    <div id="msg-loading" class="text-center my-4">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-2 text-muted">Cargando datos...</p>
+    </div>
+
+    <!-- Error si falla el API -->
+    <div id="msg-error" class="alert alert-danger"></div>
+
+    <!-- Tarjetas de resumen -->
+    <div class="row g-3 mb-4" id="stats-cards"></div>
+
+    <div class="row g-4">
+      <!-- Últimas ventas -->
+      <div class="col-md-7">
+        <div class="card">
+          <div class="card-header fw-semibold">Últimas Ventas</div>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Cliente</th>
+                  <th>Fecha</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-ventas"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alertas de stock -->
+      <div class="col-md-5">
+        <div class="card border-danger">
+          <div class="card-header fw-semibold text-danger">⚠️ Stock Bajo</div>
+          <div class="card-body" id="alertas-stock">
+            <p class="text-muted">Cargando...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Call dashboard function
+    document.addEventListener('DOMContentLoaded', async () => {
+      setLoading(true);
+      try {
+        const data = await apiGet('/dashboard');
+        mostrarStats(data.resumen);
+        mostrarUltimasVentas(data.ultimas_ventas);
+        mostrarAlertasStock(data.alertas_stock);
+      } catch (e) {
+        showError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // Show stats
+    function mostrarStats(r) {
+      const cards = [
+        { label: 'Productos',        value: r.total_productos,                 color: 'primary' },
+        { label: 'Clientes',         value: r.total_clientes,                  color: 'success' },
+        { label: 'Ventas',           value: r.total_ventas,                    color: 'info'    },
+        { label: 'Ingresos Totales', value: formatMoney(r.ingresos_totales),   color: 'warning' },
+      ];
+
+      document.getElementById('stats-cards').innerHTML = cards.map(c => `
+        <div class="col-sm-6 col-xl-3">
+          <div class="card stat-card border-${c.color}">
+            <div class="card-body">
+              <div class="stat-label">${c.label}</div>
+              <div class="stat-number text-${c.color}">${c.value}</div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Last 5 sales
+    function mostrarUltimasVentas(ventas) {
+      const tbody = document.getElementById('tabla-ventas');
+      if (!ventas || ventas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Sin ventas</td></tr>';
+        return;
+      }
+      tbody.innerHTML = ventas.map(v => `
+        <tr>
+          <td>#${v.id_venta}</td>
+          <td>${v.nombre} ${v.apellido}</td>
+          <td>${formatDate(v.fecha)}</td>
+          <td>${formatMoney(v.total)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Low stock products
+    function mostrarAlertasStock(alertas) {
+      const el = document.getElementById('alertas-stock');
+      if (!alertas || alertas.length === 0) {
+        el.innerHTML = '<p class="text-success mb-0">✓ Todo el stock está bien.</p>';
+        return;
+      }
+      el.innerHTML = alertas.map(a => `
+        <div class="d-flex justify-content-between mb-2">
+          <span>${a.nombre}</span>
+          <span class="badge-low">${a.stock_actual} / ${a.stock_minimo}</span>
+        </div>
+      `).join('');
+    }
+  </script>
+</body>
+</html>
