@@ -243,10 +243,6 @@ async def create_sale(data: SaleCreate):
 
             stock_actual = producto[0]
             precio_real = float(producto[1])
-            stock = cursor.fetchone()
-
-            if stock is None:
-                raise HTTPException(status_code=404, detail=f"Product {item.id_producto} does not exist")
 
             if stock_actual < item.cantidad:
                 raise HTTPException(
@@ -285,7 +281,6 @@ async def create_sale(data: SaleCreate):
         cursor.close()
         conn.close()
 
-
 @app.get("/stats")
 async def get_stats():
     conn = db_connection()
@@ -293,32 +288,27 @@ async def get_stats():
         raise HTTPException(status_code=500, detail="DB connection failed")
 
     cursor = conn.cursor()
+
     try:
-        cursor.execute("SELECT COUNT(*) FROM Producto;")
-        row1 = cursor.fetchone()
-        if row1 is None:
-            raise HTTPException(status_code=404, detail="Products not found")
-        total_productos = row1[0]
-
-        cursor.execute("SELECT COUNT(*) FROM Venta;")
-        row2 = cursor.fetchone()
-        if row2 is None:
-            raise HTTPException(status_code=404, detail="Sales not found")
-        total_ventas = row2[0]
-
         cursor.execute("""
-            SELECT COALESCE(SUM(cantidad * precio_venta), 0)
-            FROM Detalle_venta;
+            SELECT 
+                (SELECT COUNT(*) FROM Producto) AS total_productos,
+                (SELECT COUNT(*) FROM Venta) AS total_ventas,
+                (
+                    SELECT COALESCE(SUM(cantidad * precio_venta), 0)
+                    FROM Detalle_venta
+                ) AS ingresos_totales;
         """)
-        row3 = cursor.fetchone()
-        if row3 is None:
-            raise HTTPException(status_code=404, detail="Sale detail not found")
-        ingresos = float(row3[0])
+
+        row = cursor.fetchone()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Stats not found")
 
         return {
-            "total_productos": total_productos,
-            "total_ventas": total_ventas,
-            "ingresos_totales": ingresos
+            "total_productos": row[0],
+            "total_ventas": row[1],
+            "ingresos_totales": float(row[2])
         }
 
     except Exception as e:
@@ -327,7 +317,6 @@ async def get_stats():
     finally:
         cursor.close()
         conn.close()
-
 
 @app.get("/dashboard")
 async def get_dashboard():
@@ -338,134 +327,80 @@ async def get_dashboard():
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT COUNT(*) FROM Producto;")
+        cursor.execute("""
+            WITH resumen AS (
+                SELECT 
+                    (SELECT COUNT(*) FROM Producto) AS total_productos,
+                    (SELECT COUNT(*) FROM Cliente) AS total_clientes,
+                    (SELECT COUNT(*) FROM Venta) AS total_ventas,
+                    (SELECT COALESCE(SUM(cantidad * precio_venta), 0) FROM Detalle_venta) AS ingresos_totales
+            ),
+            top_productos AS (
+                SELECT 
+                    p.id_producto,
+                    p.nombre,
+                    SUM(dv.cantidad * dv.precio_venta) AS ingreso
+                FROM Producto p
+                JOIN Detalle_venta dv ON p.id_producto = dv.id_producto
+                GROUP BY p.id_producto, p.nombre
+                HAVING SUM(dv.cantidad * dv.precio_venta) > 0
+                ORDER BY ingreso DESC
+                LIMIT 5
+            ),
+            top_clientes AS (
+                SELECT 
+                    c.id_cliente,
+                    c.nombre,
+                    c.apellido,
+                    SUM(dv.cantidad * dv.precio_venta) AS total
+                FROM Cliente c
+                JOIN Venta v ON c.id_cliente = v.id_cliente
+                JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
+                GROUP BY c.id_cliente
+                ORDER BY total DESC
+                LIMIT 5
+            ),
+            ultimas_ventas AS (
+                SELECT 
+                    v.id_venta,
+                    v.fecha,
+                    c.nombre,
+                    c.apellido,
+                    SUM(dv.cantidad * dv.precio_venta) as total
+                FROM Venta v
+                JOIN Cliente c ON v.id_cliente = c.id_cliente
+                JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
+                GROUP BY v.id_venta, c.nombre, c.apellido
+                ORDER BY v.fecha DESC
+                LIMIT 5
+            ),
+            alertas_stock AS (
+                SELECT 
+                    id_producto,
+                    nombre,
+                    stock_actual,
+                    stock_minimo
+                FROM Producto
+                WHERE stock_actual <= stock_minimo
+            )
+
+            SELECT 
+                (SELECT row_to_json(resumen) FROM resumen) AS resumen,
+                (SELECT json_agg(top_productos) FROM top_productos) AS top_productos,
+                (SELECT json_agg(top_clientes) FROM top_clientes) AS top_clientes,
+                (SELECT json_agg(ultimas_ventas) FROM ultimas_ventas) AS ultimas_ventas,
+                (SELECT json_agg(alertas_stock) FROM alertas_stock) AS alertas_stock;
+        """)
+
         row = cursor.fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="Products not found")
-        total_productos = row[0]
-
-        cursor.execute("SELECT COUNT(*) FROM Cliente;")
-        row2 = cursor.fetchone()
-        if row2 is None:
-            raise HTTPException(status_code=404, detail="Clients not found")
-        total_clientes = row2[0]
-
-        cursor.execute("SELECT COUNT(*) FROM Venta;")
-        row3 = cursor.fetchone()
-        if row3 is None:
-            raise HTTPException(status_code=404, detail="Sales not found")
-        total_ventas = row3[0]
-
-        cursor.execute("""
-            SELECT COALESCE(SUM(cantidad * precio_venta), 0)
-            FROM Detalle_venta;
-        """)
-        row4 = cursor.fetchone()
-        if row4 is None:
-            raise HTTPException(status_code=404, detail="Sale detail not found")
-        ingresos_totales = float(row4[0])
-
-        cursor.execute("""
-            SELECT 
-                p.id_producto,
-                p.nombre,
-                SUM(dv.cantidad * dv.precio_venta) AS ingreso
-            FROM Producto p
-            JOIN Detalle_venta dv ON p.id_producto = dv.id_producto
-            GROUP BY p.id_producto
-            ORDER BY ingreso DESC
-            LIMIT 5;
-        """)
-
-        top_productos = [
-            {
-                "id_producto": r[0],
-                "nombre": r[1],
-                "ingreso": float(r[2])
-            }
-            for r in cursor.fetchall()
-        ]
-
-        cursor.execute("""
-            SELECT 
-                c.id_cliente,
-                c.nombre,
-                c.apellido,
-                SUM(dv.cantidad * dv.precio_venta) AS total
-            FROM Cliente c
-            JOIN Venta v ON c.id_cliente = v.id_cliente
-            JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
-            GROUP BY c.id_cliente
-            ORDER BY total DESC
-            LIMIT 5;
-        """)
-
-        top_clientes = [
-            {
-                "id_cliente": r[0],
-                "nombre": r[1],
-                "apellido": r[2],
-                "total_gastado": float(r[3])
-            }
-            for r in cursor.fetchall()
-        ]
-
-        cursor.execute("""
-            SELECT 
-                v.id_venta,
-                v.fecha,
-                c.nombre,
-                c.apellido,
-                SUM(dv.cantidad * dv.precio_venta) as total
-            FROM Venta v
-            JOIN Cliente c ON v.id_cliente = c.id_cliente
-            JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
-            GROUP BY v.id_venta, c.nombre, c.apellido
-            ORDER BY v.fecha DESC
-            LIMIT 5;
-        """)
-
-        ultimas_ventas = [
-            {
-                "id_venta": r[0],
-                "fecha": r[1],
-                "cliente": f"{r[2]} {r[3]}",
-                "total": float(r[4])
-            }
-            for r in cursor.fetchall()
-        ]
-
-        cursor.execute("""
-            SELECT 
-                id_producto,
-                nombre,
-                stock_actual,
-                stock_minimo
-            FROM Producto
-            WHERE stock_actual <= stock_minimo;
-        """)
-
-        alertas_stock = [
-            {
-                "id_producto": r[0],
-                "nombre": r[1],
-                "stock_actual": r[2],
-                "stock_minimo": r[3]
-            }
-            for r in cursor.fetchall()
-        ]
-
+            raise HTTPException(status_code=404, detail="No data found")
         return {
-            "resumen": {
-                "total_productos": total_productos,
-                "total_clientes": total_clientes,
-                "total_ventas": total_ventas,
-                "ingresos_totales": ingresos_totales
-            },
-            "top_productos": top_productos,
-            "top_clientes": top_clientes,
-            "ultimas_ventas": ultimas_ventas,
-            "alertas_stock": alertas_stock
+            "resumen": row[0],
+            "top_productos": row[1] or [],
+            "top_clientes": row[2] or [],
+            "ultimas_ventas": row[3] or [],
+            "alertas_stock": row[4] or []
         }
 
     except Exception as e:
@@ -474,7 +409,6 @@ async def get_dashboard():
     finally:
         cursor.close()
         conn.close()
-
 
 @app.get("/clients", response_model=list[ClientResponse])
 async def get_clients():
@@ -744,54 +678,68 @@ async def get_sales():
         raise HTTPException(status_code=500, detail="DB connection failed")
 
     cursor = conn.cursor()
+
     try:
+        # 🔹 Query principal con subquery para total
         cursor.execute("""
             SELECT 
                 v.id_venta,
                 v.fecha,
                 v.metodo_pago,
-                p.nombre,
-                dv.cantidad,
-                dv.precio_venta
+                (
+                    SELECT COALESCE(SUM(dv.cantidad * dv.precio_venta), 0)
+                    FROM Detalle_venta dv
+                    WHERE dv.id_venta = v.id_venta
+                ) AS total
             FROM Venta v
-            JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
-            JOIN Producto p ON dv.id_producto = p.id_producto
             ORDER BY v.id_venta;
         """)
 
-        rows = cursor.fetchall()
+        ventas_rows = cursor.fetchall()
 
-        if not rows:
+        if not ventas_rows:
             return []
 
-        ventas = {}
+        ventas = []
 
-        for r in rows:
-            id_venta = r[0]
+        for venta in ventas_rows:
+            id_venta = venta[0]
 
-            if id_venta not in ventas:
-                ventas[id_venta] = {
-                    "id_venta": id_venta,
-                    "fecha": str(r[1]),
-                    "metodo_pago": r[2],
-                    "productos": [],
-                    "total": 0.0
-                }
+            cursor.execute("""
+                SELECT 
+                    p.nombre,
+                    dv.cantidad,
+                    dv.precio_venta
+                FROM Detalle_venta dv
+                JOIN Producto p ON dv.id_producto = p.id_producto
+                WHERE dv.id_venta = %s;
+            """, (id_venta,))
 
-            subtotal = r[4] * float(r[5])
+            productos_rows = cursor.fetchall()
 
-            ventas[id_venta]["productos"].append(
-                SaleProductResponse(
-                    producto=r[3],
-                    cantidad=r[4],
-                    precio=float(r[5]),
+            productos = []
+            for r in productos_rows:
+                subtotal = r[1] * float(r[2])
+
+                productos.append(SaleProductResponse(
+                    producto=r[0],
+                    cantidad=r[1],
+                    precio=float(r[2]),
                     subtotal=subtotal
-                )
-            )
+                ))
 
-            ventas[id_venta]["total"] += subtotal
+            ventas.append(SaleResponse(
+                id_venta=id_venta,
+                fecha=str(venta[1]),
+                metodo_pago=venta[2],
+                productos=productos,
+                total=float(venta[3])
+            ))
 
-        return list(ventas.values())
+        return ventas
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         cursor.close()
