@@ -108,7 +108,10 @@ async def create_product(data: ProductCreate):
             data.id_categoria
         ))
 
-        id_producto = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Product not found")
+        id_producto = row[0]
         conn.commit()
 
         return {"message": "Producto creado", "id": id_producto}
@@ -210,7 +213,10 @@ async def create_sale(data: SaleCreate):
             RETURNING id_venta;
         """, (data.id_cliente, data.id_empleado, data.metodo_pago))
 
-        id_venta = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Product not found")
+        id_venta = row[0]
 
         for item in data.productos:
 
@@ -221,7 +227,7 @@ async def create_sale(data: SaleCreate):
             stock = cursor.fetchone()
 
             if stock is None:
-                raise HTTPException(status_code=404, detail=f"Producto {item.id_producto} no existe")
+                raise HTTPException(status_code=404, detail=f"Product {item.id_producto} does not exist")
 
             if stock[0] < item.cantidad:
                 raise HTTPException(
@@ -246,7 +252,7 @@ async def create_sale(data: SaleCreate):
             """, (item.cantidad, item.id_producto))
 
         conn.commit()
-        return {"message": "Venta creada", "id_venta": id_venta}
+        return {"message": "Sale created", "id_venta": id_venta}
 
     except HTTPException:
         conn.rollback()
@@ -269,16 +275,25 @@ async def get_stats():
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT COUNT(*) FROM Producto;")
-        total_productos = cursor.fetchone()[0]
+        row1 =  cursor.fetchone()
+        if row1 is None:
+            raise HTTPException(status_code=404, detail="Products not found")
+        total_productos = row1[0]
 
         cursor.execute("SELECT COUNT(*) FROM Venta;")
-        total_ventas = cursor.fetchone()[0]
+        row2 =  cursor.fetchone()
+        if row2 is None:
+            raise HTTPException(status_code=404, detail="Sales not found")
+        total_ventas = row2[0]
 
         cursor.execute("""
             SELECT COALESCE(SUM(cantidad * precio_venta), 0)
             FROM Detalle_venta;
         """)
-        ingresos = float(cursor.fetchone()[0])
+        row3 = cursor.fetchone()
+        if row3 is None:
+            raise HTTPException(status_code=404, detail="Sale detail not found")
+        ingresos = float(row3[0])
 
         return {
             "total_productos": total_productos,
@@ -305,19 +320,31 @@ async def get_dashboard():
     try:
         # Métricas generales
         cursor.execute("SELECT COUNT(*) FROM Producto;")
-        total_productos = cursor.fetchone()[0]
+        row= cursor.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Products not found")
+        total_productos = row[0]
 
         cursor.execute("SELECT COUNT(*) FROM Cliente;")
-        total_clientes = cursor.fetchone()[0]
+        row2 = cursor.fetchone()
+        if row2 is None:
+            raise HTTPException(status_code=404, detail="Clients not found")
+        total_clientes = row2[0]
 
         cursor.execute("SELECT COUNT(*) FROM Venta;")
-        total_ventas = cursor.fetchone()[0]
+        row3 = cursor.fetchone()
+        if row3 is None:
+            raise HTTPException(status_code=404, detail="Sales not found")
+        total_ventas = row3[0]
 
         cursor.execute("""
             SELECT COALESCE(SUM(cantidad * precio_venta), 0)
             FROM Detalle_venta;
         """)
-        ingresos_totales = float(cursor.fetchone()[0])
+        row4 = cursor.fetchone()
+        if row4 is None:
+            raise HTTPException(status_code=404, detail="Sale detail not found")
+        ingresos_totales = float(row4[0])
 
        # Productos que generan más ingresos
         cursor.execute("""
@@ -427,6 +454,157 @@ async def get_dashboard():
         }
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/clients")
+async def get_clients():
+    conn = db_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="DB connection failed")
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id_cliente, nombre, apellido, telefono, correo, nit FROM Cliente;")
+
+        return [
+            {
+                "id_cliente": r[0],
+                "nombre": r[1],
+                "apellido": r[2],
+                "telefono": r[3],
+                "correo": r[4],
+                "nit": r[5]
+            }
+            for r in cursor.fetchall()
+        ]
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/clients/{id}")
+async def get_client(id: int):
+    conn = db_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="DB connection failed")
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT id_cliente, nombre, apellido, telefono, correo, nit
+            FROM Cliente
+            WHERE id_cliente = %s;
+        """, (id,))
+
+        row = cursor.fetchone()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+        return {
+            "id_cliente": row[0],
+            "nombre": row[1],
+            "apellido": row[2],
+            "telefono": row[3],
+            "correo": row[4],
+            "nit": row[5]
+        }
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.post("/clients")
+async def create_client(data: dict):
+    conn = db_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="DB connection failed")
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO Cliente (nombre, apellido, telefono, correo, nit)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id_cliente;
+        """, (
+            data["nombre"],
+            data["apellido"],
+            data.get("telefono"),
+            data.get("correo"),
+            data.get("nit")
+        ))
+
+        conn.commit()
+        row = cursor.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Client not found")
+        return {"id_cliente": row[0]}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.put("/clients/{id}")
+async def update_client(id: int, data: dict):
+    conn = db_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="DB connection failed")
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE Cliente
+            SET nombre=%s, apellido=%s, telefono=%s, correo=%s, nit=%s
+            WHERE id_cliente=%s;
+        """, (
+            data["nombre"],
+            data["apellido"],
+            data.get("telefono"),
+            data.get("correo"),
+            data.get("nit"),
+            id
+        ))
+
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Client not found")
+
+        conn.commit()
+        return {"message": "Client updated"}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.delete("/clients/{id}")
+async def delete_client(id: int):
+    conn = db_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="DB connection failed")
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Cliente WHERE id_cliente=%s;", (id,))
+
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Client not found")
+
+        conn.commit()
+        return {"message": "Client deleted"}
+
+    except Exception as e:
+        conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
