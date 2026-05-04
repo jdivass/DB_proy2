@@ -292,3 +292,143 @@ async def get_stats():
     finally:
         cursor.close()
         conn.close()
+
+
+@app.get("/dashboard")
+async def get_dashboard():
+    conn = db_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="DB connection failed")
+
+    cursor = conn.cursor()
+
+    try:
+        # Métricas generales
+        cursor.execute("SELECT COUNT(*) FROM Producto;")
+        total_productos = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM Cliente;")
+        total_clientes = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM Venta;")
+        total_ventas = cursor.fetchone()[0]
+
+        cursor.execute("""
+            SELECT COALESCE(SUM(cantidad * precio_venta), 0)
+            FROM Detalle_venta;
+        """)
+        ingresos_totales = float(cursor.fetchone()[0])
+
+       # Productos que generan más ingresos
+        cursor.execute("""
+            SELECT 
+                p.id_producto,
+                p.nombre,
+                SUM(dv.cantidad * dv.precio_venta) AS ingreso
+            FROM Producto p
+            JOIN Detalle_venta dv ON p.id_producto = dv.id_producto
+            GROUP BY p.id_producto
+            ORDER BY ingreso DESC
+            LIMIT 5;
+        """)
+
+        top_productos = [
+            {
+                "id_producto": r[0],
+                "nombre": r[1],
+                "ingreso": float(r[2])
+            }
+            for r in cursor.fetchall()
+        ]
+
+        # Mejores clientes
+        cursor.execute("""
+            SELECT 
+                c.id_cliente,
+                c.nombre,
+                c.apellido,
+                SUM(dv.cantidad * dv.precio_venta) AS total
+            FROM Cliente c
+            JOIN Venta v ON c.id_cliente = v.id_cliente
+            JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
+            GROUP BY c.id_cliente
+            ORDER BY total DESC
+            LIMIT 5;
+        """)
+
+        top_clientes = [
+            {
+                "id_cliente": r[0],
+                "nombre": r[1],
+                "apellido": r[2],
+                "total_gastado": float(r[3])
+            }
+            for r in cursor.fetchall()
+        ]
+
+        # Últimas ventas
+        cursor.execute("""
+            SELECT 
+                v.id_venta,
+                v.fecha,
+                c.nombre,
+                c.apellido,
+                SUM(dv.cantidad * dv.precio_venta) as total
+            FROM Venta v
+            JOIN Cliente c ON v.id_cliente = c.id_cliente
+            JOIN Detalle_venta dv ON v.id_venta = dv.id_venta
+            GROUP BY v.id_venta, c.nombre, c.apellido
+            ORDER BY v.fecha DESC
+            LIMIT 5;
+        """)
+
+        ultimas_ventas = [
+            {
+                "id_venta": r[0],
+                "fecha": r[1],
+                "cliente": f"{r[2]} {r[3]}",
+                "total": float(r[4])
+            }
+            for r in cursor.fetchall()
+        ]
+
+        # Stock bajo
+        cursor.execute("""
+            SELECT 
+                id_producto,
+                nombre,
+                stock_actual,
+                stock_minimo
+            FROM Producto
+            WHERE stock_actual <= stock_minimo;
+        """)
+
+        alertas_stock = [
+            {
+                "id_producto": r[0],
+                "nombre": r[1],
+                "stock_actual": r[2],
+                "stock_minimo": r[3]
+            }
+            for r in cursor.fetchall()
+        ]
+
+        return {
+            "resumen": {
+                "total_productos": total_productos,
+                "total_clientes": total_clientes,
+                "total_ventas": total_ventas,
+                "ingresos_totales": ingresos_totales
+            },
+            "top_productos": top_productos,
+            "top_clientes": top_clientes,
+            "ultimas_ventas": ultimas_ventas,
+            "alertas_stock": alertas_stock
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        cursor.close()
+        conn.close()
