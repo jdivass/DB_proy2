@@ -128,6 +128,7 @@ El sistema maneja las siguientes entidades:
 ### 1. Clonar o descomprimir el proyecto
 
 ```bash
+git clone https://github.com/jdivass/DB_proy2.git
 cd DB_proy2
 ```
 
