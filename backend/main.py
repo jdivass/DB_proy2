@@ -1,12 +1,21 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Response, Cookie
 from dbConnection import db_connection
 from typing import List
 from models import (
     ProductCreate, ProductUpdate,
     ClientCreate, ClientUpdate, ClientResponse,
-    SaleCreate, SaleResponse, ProductResponse, SaleProductResponse
+    SaleCreate, SaleResponse, ProductResponse, SaleProductResponse,
+    LoginRequest, UserResponse
 )
 from fastapi.middleware.cors import CORSMiddleware
+
+from auth import (
+    authenticate_user,
+    create_session,
+    delete_session,
+    get_current_user,
+    require_roles
+)
 
 app = FastAPI()
 
@@ -780,3 +789,33 @@ async def get_sales():
     finally:
         cursor.close()
         conn.close()
+
+@app.post("/login")
+async def login(data: LoginRequest, response: Response):
+    user = authenticate_user(data.username, data.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+ 
+    session_id = create_session(user)
+ 
+    response.set_cookie(
+        key="session_id",
+        value=session_id,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 60 * 1 # 1 hora
+    )
+ 
+    return {"message": "Login exitoso", "rol": user["rol"], "username": user["username"]}
+
+@app.post("/logout")
+async def logout(response: Response, session_id: str | None = Cookie(default=None)):
+    if session_id:
+        delete_session(session_id)
+    response.delete_cookie("session_id")
+    return {"message": "Sesión cerrada"}
+ 
+ 
+@app.get("/me", response_model=UserResponse)
+async def me(current_user: dict = Depends(get_current_user)):
+    return current_user

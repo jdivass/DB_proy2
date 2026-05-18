@@ -108,3 +108,12 @@ class SaleResponse(BaseModel):
     metodo_pago: str
     productos: List[SaleProductResponse]
     total: float
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UserResponse(BaseModel):
+    id_usuario: int
+    username: str
+    rol: str
