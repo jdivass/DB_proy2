@@ -49,7 +49,9 @@ async def test():
 
 
 @app.get("/products", response_model=List[ProductResponse])
-async def get_productos():
+async def get_productos(
+    current_user: dict = Depends(require_roles("administrador", "gerente_inventario", "cajero", "auditor", "recepcionista"))
+):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -80,7 +82,8 @@ async def get_productos():
 
 
 @app.get("/products/{id}")
-async def get_product(id: int):
+async def get_product(id: int, current_user: dict = Depends(require_roles("administrador", "gerente_inventario", "cajero", "auditor", "recepcionista"))
+                      ):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -110,7 +113,7 @@ async def get_product(id: int):
 
 
 @app.post("/products", response_model=ProductResponse)
-async def create_product(data: ProductCreate):
+async def create_product(id: int, data: ProductCreate, current_user: dict = Depends(require_roles("administrador", "gerente_inventario"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -225,7 +228,7 @@ async def update_product(id: int, data: ProductUpdate):
 
 
 @app.delete("/products/{id}")
-async def delete_product(id: int):
+async def delete_product(id: int, current_user: dict = Depends(require_roles("administrador", "gerente_inventario"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -250,7 +253,7 @@ async def delete_product(id: int):
 
 
 @app.post("/sales")
-async def create_sale(data: SaleCreate):
+async def create_sale(data: SaleCreate, current_user: dict = Depends(require_roles("administrador", "cajero"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -328,7 +331,9 @@ async def create_sale(data: SaleCreate):
         conn.close()
 
 @app.get("/stats")
-async def get_stats():
+async def get_stats(
+    current_user: dict = Depends(require_roles("administrador", "auditor", "gerente_inventario"))
+):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -365,7 +370,9 @@ async def get_stats():
         conn.close()
 
 @app.get("/dashboard")
-async def get_dashboard():
+async def get_dashboard(
+    current_user: dict = Depends(require_roles("administrador", "auditor", "gerente_inventario"))
+):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -457,7 +464,7 @@ async def get_dashboard():
         conn.close()
 
 @app.get("/clients", response_model=list[ClientResponse])
-async def get_clients():
+async def get_clients(current_user: dict = Depends(require_roles("administrador", "recepcionista", "auditor", "cajero", "gerente_inventario"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -484,7 +491,7 @@ async def get_clients():
 
 
 @app.get("/clients/{id}", response_model=ClientResponse)
-async def get_client(id: int):
+async def get_client(id: int, current_user: dict = Depends(require_roles("administrador", "recepcionista", "auditor", "cajero", "gerente_inventario"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -517,7 +524,7 @@ async def get_client(id: int):
 
 
 @app.post("/clients", status_code=201)
-async def create_client(data: ClientCreate):
+async def create_client(data: ClientCreate, current_user: dict = Depends(require_roles("administrador", "recepcionista"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -553,7 +560,7 @@ async def create_client(data: ClientCreate):
 
 
 @app.put("/clients/{id}")
-async def update_client(id: int, data: ClientUpdate):
+async def update_client(id: int, data: ClientUpdate, current_user: dict = Depends(require_roles("administrador", "recepcionista"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -596,7 +603,7 @@ async def update_client(id: int, data: ClientUpdate):
 
 
 @app.delete("/clients/{id}")
-async def delete_client(id: int):
+async def delete_client(id: int, current_user: dict = Depends(require_roles("administrador"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -620,7 +627,7 @@ async def delete_client(id: int):
         conn.close()
 
 @app.get("/sales/{id}", response_model=SaleResponse)
-async def get_sale(id: int):
+async def get_sale(id: int, current_user: dict = Depends(require_roles("administrador", "cajero", "auditor", "recepcionista", "gerente_inventario"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -674,7 +681,7 @@ async def get_sale(id: int):
 
 
 @app.delete("/sales/{id}")
-async def delete_sale(id: int):
+async def delete_sale(id: int, current_user: dict = Depends(require_roles("administrador"))):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
@@ -718,7 +725,9 @@ async def delete_sale(id: int):
         conn.close()
 
 @app.get("/sales", response_model=List[SaleResponse])
-async def get_sales():
+async def get_sales(
+    current_user: dict = Depends(require_roles("administrador", "cajero", "auditor", "recepcionista", "gerente_inventario"))
+):
     conn = db_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="DB connection failed")
